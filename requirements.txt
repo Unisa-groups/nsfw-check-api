@@ -5,3 +5,5 @@ torch==2.2.2
 transformers==4.40.0
 numpy==1.26.4
 python-multipart==0.0.22
+pytest==9.0.2
+httpx==0.28.1
