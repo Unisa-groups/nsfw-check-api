@@ -7,7 +7,7 @@ ENV PATH="/usr/src/app/.venv/bin:$PATH"
 ENV MODEL_PATH=/usr/src/app/model
 
 COPY . .
-RUN uv sync --frozen --no-cache --no-install-project --no-dev
+RUN uv sync --no-cache --no-install-project --no-dev
 RUN uv run download_model.py
 
 EXPOSE 8123

@@ -51,7 +51,7 @@ def test_check_nsfw_invalid_file():
     assert response.json()["detail"] == "Invalid image file"
 
 def test_test_endpoint():
-    response = client.get("/test")
+    response = client.get("/test_nsfw")
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
     assert "NSFW Check Test" in response.text

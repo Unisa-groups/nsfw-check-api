@@ -7,24 +7,24 @@ import os
 import io
 
 # Load model and image processor from local directory
-model_name = "Falconsai/nsfw_image_detection"
 model_path = os.getenv("MODEL_PATH", "./model")
-image_processor = AutoImageProcessor.from_pretrained(model_path, local_files_only=True)
-model = AutoModelForImageClassification.from_pretrained(model_path, local_files_only=True)
+nsfw_model_name = "Falconsai/nsfw_image_detection"
+nsfw_image_processor = AutoImageProcessor.from_pretrained(model_path, local_files_only=True)
+nsfw_model = AutoModelForImageClassification.from_pretrained(model_path, local_files_only=True)
 
 app = FastAPI()
 
 def is_nsfw(image):
     # Preprocess the image
-    inputs = image_processor(images=image, return_tensors="pt")
+    inputs = nsfw_image_processor(images=image, return_tensors="pt")
     # Predict
     with torch.no_grad():
-        outputs = model(**inputs)
+        outputs = nsfw_model(**inputs)
     probabilities = torch.nn.functional.softmax(outputs.logits, dim=-1)
     nsfw_prob = probabilities[0][1].item()  # Index 1 is NSFW
     return nsfw_prob > 0.5, nsfw_prob
 
-@app.post("/check_nsfw")
+@app.post("/nsfw_check")
 async def check_nsfw(file: UploadFile = File(...)):
     contents = await file.read()
     try:
@@ -40,7 +40,7 @@ async def check_nsfw(file: UploadFile = File(...)):
         }
     )
 
-@app.get("/test")
+@app.get("/nsfw_test")
 async def test_form():
     content = """
     <!DOCTYPE html>
