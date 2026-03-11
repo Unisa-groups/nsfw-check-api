@@ -1,5 +1,5 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 from transformers import AutoModelForImageClassification, AutoImageProcessor
 import torch
 from PIL import Image, UnidentifiedImageError
@@ -38,6 +38,54 @@ async def check_nsfw(file: UploadFile = File(...)):
             "nsfw_probability": prob
         }
     )
+
+@app.get("/test")
+async def test_form():
+    content = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>NSFW Check Test</title>
+        <style>
+            body { font-family: sans-serif; margin: 2rem; }
+            .result { margin-top: 1rem; padding: 1rem; border: 1px solid #ccc; border-radius: 4px; display: none; }
+        </style>
+    </head>
+    <body>
+        <h1>NSFW Check Test</h1>
+        <form id="upload-form">
+            <input type="file" name="file" accept="image/*" required>
+            <button type="submit">Upload and Check</button>
+        </form>
+        <div id="result" class="result"></div>
+
+        <script>
+            const form = document.getElementById('upload-form');
+            const resultDiv = document.getElementById('result');
+
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const formData = new FormData(form);
+                resultDiv.style.display = 'block';
+                resultDiv.innerText = 'Analyzing...';
+
+                try {
+                    const response = await fetch('/check_nsfw', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const result = await response.json();
+                    resultDiv.innerText = JSON.stringify(result, null, 2);
+                    resultDiv.style.whiteSpace = 'pre-wrap';
+                } catch (error) {
+                    resultDiv.innerText = 'Error: ' + error.message;
+                }
+            });
+        </script>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=content)
 
 if __name__ == "__main__":
     import uvicorn
