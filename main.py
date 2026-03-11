@@ -3,11 +3,12 @@ from fastapi.responses import JSONResponse, HTMLResponse
 from transformers import AutoModelForImageClassification, AutoImageProcessor
 import torch
 from PIL import Image, UnidentifiedImageError
+import os
 import io
 
 # Load model and image processor from local directory
 model_name = "Falconsai/nsfw_image_detection"
-model_path = "./model"
+model_path = os.getenv("MODEL_PATH", "./model")
 image_processor = AutoImageProcessor.from_pretrained(model_path, local_files_only=True)
 model = AutoModelForImageClassification.from_pretrained(model_path, local_files_only=True)
 
