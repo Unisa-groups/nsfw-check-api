@@ -1,0 +1,14 @@
+[Unit]
+Description=Podman:nsfw-check-api
+Requires=sysinit.target
+After=network.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/podman-compose -f /home/git/nsfw-check-api/docker-compose.yml up -d
+ExecStop=/usr/bin/podman-compose -f /home/git/nsfw-check-api/docker-compose.yml down
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
