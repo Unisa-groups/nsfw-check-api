@@ -4,7 +4,8 @@ WORKDIR /usr/src/app
 ENV UV_COMPILE_BYTECODE=1
 ENV UV_PROJECT_ENVIRONMENT=/usr/src/app/.venv
 ENV PATH="/usr/src/app/.venv/bin:$PATH"
-ENV MODEL_PATH=/usr/src/app/model
+ENV MODEL_PATH_NSFW=/usr/src/app/model_nsfw
+ENV MODEL_PATH_OCR=/usr/src/app/model_ocr
 
 COPY . ./
 RUN uv sync --no-cache --no-install-project --no-dev
