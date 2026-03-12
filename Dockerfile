@@ -14,7 +14,7 @@ RUN uv sync --no-cache --no-install-project --no-dev
 COPY . ./
 
 # Download models (or build artifacts)
-RUN uv run /usr/src/app/download_model.py
+RUN uv run /usr/src/app/download_models.py
 
 # ---
 
