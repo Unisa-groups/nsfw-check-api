@@ -4,7 +4,7 @@ WORKDIR /usr/src/app
 ENV UV_COMPILE_BYTECODE=1
 ENV UV_PROJECT_ENVIRONMENT=/usr/src/app/.venv
 ENV PATH="/usr/src/app/.venv/bin:$PATH"
-ENV MODEL_PATH_NSFW="/usr/src/app/model"
+ENV MODEL_PATH="/usr/src/app/model"
 ENV MODEL_NAME="Falconsai/nsfw_image_detection"
 
 COPY pyproject.toml ./
