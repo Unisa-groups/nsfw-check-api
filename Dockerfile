@@ -9,7 +9,7 @@ ENV MODEL_PATH_OCR=/usr/src/app/model_ocr
 
 COPY . ./
 RUN uv sync --no-cache --no-install-project --no-dev
-RUN uv run download_model.py
+RUN uv run /usr/src/app/download_model.py
 
 EXPOSE 8123
 CMD ["uv", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8123"]
