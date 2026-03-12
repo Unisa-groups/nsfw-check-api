@@ -8,7 +8,8 @@ ENV MODEL_PATH="/usr/src/app/model"
 ENV MODEL_NAME="Falconsai/nsfw_image_detection"
 
 COPY pyproject.toml ./
-RUN uv sync --no-cache --no-install-project --no-dev
+RUN uv sync --no-cache --no-install-project --no-dev && \
+    rm -rf /tmp/* /var/tmp/* /var/lib/apt/lists/*
 
 COPY . ./
 
