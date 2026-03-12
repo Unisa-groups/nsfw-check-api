@@ -85,7 +85,7 @@ async def test_form():
                 resultDiv.innerText = 'Analyzing...';
 
                 try {
-                    const response = await fetch('/check_nsfw', {
+                    const response = await fetch('/nsfw_check', {
                         method: 'POST',
                         body: formData
                     });
