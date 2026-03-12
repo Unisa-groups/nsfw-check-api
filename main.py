@@ -1,17 +1,21 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse, HTMLResponse
-from transformers import AutoModelForImageClassification, AutoImageProcessor
+from transformers import AutoTokenizer, AutoModelForImageTextToText, AutoModelForImageClassification, AutoImageProcessor
 import torch
 from PIL import Image, UnidentifiedImageError
 import os
 import io
 
 # Load model and image processor from local directory
-model_path = os.getenv("MODEL_PATH", "./model")
+nsfw_model_path = os.getenv("MODEL_PATH_NSFW", "./model_nsfw")
 nsfw_model_name = "Falconsai/nsfw_image_detection"
-nsfw_image_processor = AutoImageProcessor.from_pretrained(model_path, local_files_only=True)
-nsfw_model = AutoModelForImageClassification.from_pretrained(model_path, local_files_only=True)
+nsfw_image_processor = AutoImageProcessor.from_pretrained(nsfw_model_path, local_files_only=True)
+nsfw_model = AutoModelForImageClassification.from_pretrained(nsfw_model_path, local_files_only=True)
 
+ocr_model_name = "zai-org/GLM-OCR"
+ocr_model_path = os.getenv("MODEL_PATH_OCR", "./model_ocr")
+ocr_tokenizer = AutoTokenizer.from_pretrained(ocr_model_path, local_files_only=True)
+ocr_model = AutoModelForImageTextToText.from_pretrained(ocr_model_path, local_files_only=True)
 app = FastAPI()
 
 def is_nsfw(image):
