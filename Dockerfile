@@ -26,12 +26,10 @@ ENV UV_COMPILE_BYTECODE=1
 ENV UV_PROJECT_ENVIRONMENT=/usr/src/app/.venv
 ENV PATH="/usr/src/app/.venv/bin:$PATH"
 ENV MODEL_PATH_NSFW=/usr/src/app/model_nsfw
-ENV MODEL_PATH_OCR=/usr/src/app/model_ocr
 
 # Copy only the virtual environment and necessary files from the builder
 COPY --from=builder /usr/src/app/.venv /usr/src/app/.venv
 COPY --from=builder /usr/src/app/model_nsfw /usr/src/app/model_nsfw
-COPY --from=builder /usr/src/app/model_ocr /usr/src/app/model_ocr
 COPY --from=builder /usr/src/app/main.py /usr/src/app/main.py
 
 EXPOSE 8123
