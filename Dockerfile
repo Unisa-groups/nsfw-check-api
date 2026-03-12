@@ -6,7 +6,7 @@ ENV UV_PROJECT_ENVIRONMENT=/usr/src/app/.venv
 ENV PATH="/usr/src/app/.venv/bin:$PATH"
 ENV MODEL_PATH=/usr/src/app/model
 
-COPY . .
+COPY . ./
 RUN uv sync --no-cache --no-install-project --no-dev
 RUN uv run download_model.py
 
