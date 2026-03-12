@@ -1,5 +1,4 @@
 import io
-import pytest
 from PIL import Image
 from fastapi.testclient import TestClient
 from main import app, is_nsfw
@@ -14,7 +13,7 @@ def test_is_nsfw_function():
     # Red image should not be NSFW
     assert isinstance(is_nsfw_bool, bool)
     assert isinstance(prob, float)
-    assert is_nsfw_bool == False
+    assert not is_nsfw_bool
     assert prob < 0.5
 
 def test_check_nsfw_endpoint():
@@ -35,7 +34,7 @@ def test_check_nsfw_endpoint():
     assert "filename" in data
     assert data["filename"] == "test.png"
     assert "is_nsfw" in data
-    assert data["is_nsfw"] == False
+    assert not data["is_nsfw"]
     assert "nsfw_probability" in data
     assert data["nsfw_probability"] < 0.5
 
