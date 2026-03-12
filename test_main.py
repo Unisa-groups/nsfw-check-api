@@ -16,6 +16,11 @@ def test_is_nsfw_function():
     assert not is_nsfw_bool
     assert prob < 0.5
 
+def test_heartbeat_endpoint():
+    response = client.get("/heartbeat")
+    assert response.status_code == 200
+    assert response.json() == {"status": "alive"}
+
 def test_check_nsfw_endpoint():
     # Create a small blank image in memory
     image = Image.new('RGB', (100, 100), color='blue')
@@ -25,7 +30,7 @@ def test_check_nsfw_endpoint():
 
     # Use TestClient to send a POST request with the file
     response = client.post(
-        "/check_nsfw",
+        "/nsfw_check",
         files={"file": ("test.png", img_byte_arr, "image/png")}
     )
 
@@ -41,7 +46,7 @@ def test_check_nsfw_endpoint():
 def test_check_nsfw_invalid_file():
     # Test with a non-image file
     response = client.post(
-        "/check_nsfw",
+        "/nsfw_check",
         files={"file": ("test.txt", io.BytesIO(b"not an image"), "text/plain")}
     )
     
@@ -55,3 +60,5 @@ def test_test_endpoint():
     assert "text/html" in response.headers["content-type"]
     assert "NSFW Check Test" in response.text
     assert '<form id="upload-form">' in response.text
+    # Check if the fetch call points to the correct endpoint
+    assert "fetch('/nsfw_check'" in response.text

@@ -37,6 +37,11 @@ def is_nsfw(image):
     nsfw_prob = probabilities[0][1].item()  # Index 1 is NSFW
     return nsfw_prob > 0.5, nsfw_prob
 
+@app.get("/heartbeat")
+async def heartbeat():
+    return {"status": "alive"}
+
+
 @app.post("/nsfw_check")
 async def check_nsfw(file: UploadFile = File(...)):
     contents = await file.read()
