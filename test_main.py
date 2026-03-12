@@ -36,8 +36,6 @@ def test_check_nsfw_endpoint():
 
     assert response.status_code == 200
     data = response.json()
-    assert "filename" in data
-    assert data["filename"] == "test.png"
     assert "is_nsfw" in data
     assert not data["is_nsfw"]
     assert "nsfw_probability" in data

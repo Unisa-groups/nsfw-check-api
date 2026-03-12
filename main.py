@@ -50,9 +50,9 @@ async def check_nsfw(file: UploadFile = File(...)):
     except UnidentifiedImageError:
         raise HTTPException(status_code=400, detail="Invalid image file")
     is_nsfw_bool, prob = is_nsfw(image)
+    prob = round(prob, 4)
     return JSONResponse(
         content={
-            "filename": file.filename,
             "is_nsfw": is_nsfw_bool,
             "nsfw_probability": prob
         }
