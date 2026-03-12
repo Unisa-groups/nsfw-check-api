@@ -7,16 +7,29 @@ import os
 import io
 
 # Load model and image processor from local directory
-nsfw_model_path = os.getenv("MODEL_PATH_NSFW", "./model_nsfw")
-nsfw_model_name = "Falconsai/nsfw_image_detection"
-nsfw_image_processor = AutoImageProcessor.from_pretrained(nsfw_model_path, local_files_only=True)
-nsfw_model = AutoModelForImageClassification.from_pretrained(nsfw_model_path, local_files_only=True)
+model_path = os.getenv("MODEL_PATH", "./model")
+model_name = os.getenv("MODEL_NAME", "Falconsai/nsfw_image_detection")
+
+def ensure_models_exist():
+    # Check for config.json as an indicator that the model is present
+    config_path = os.path.join(model_path, "config.json")
+    if not os.path.exists(config_path):
+        from huggingface_hub import snapshot_download
+        print(f"Downloading model {model_name} to {model_path}...")
+        os.makedirs(model_path, exist_ok=True)
+        snapshot_download(repo_id=model_name, local_dir=model_path)
+        print(f"Model files downloaded successfully: {model_name}")
+
+ensure_models_exist()
+
+image_processor = AutoImageProcessor.from_pretrained(model_path)
+nsfw_model = AutoModelForImageClassification.from_pretrained(model_path)
 
 app = FastAPI()
 
 def is_nsfw(image):
     # Preprocess the image
-    inputs = nsfw_image_processor(images=image, return_tensors="pt")
+    inputs = image_processor(images=image, return_tensors="pt")
     # Predict
     with torch.no_grad():
         outputs = nsfw_model(**inputs)
