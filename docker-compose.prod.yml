@@ -1,7 +1,9 @@
 services:
   nsfw-check-api:
-    build: .
+    image: ghcr.io/unisa-groups/nsfw-check-api:sha-db5fd0d
+    restart: unless-stopped
     ports:
       - "30000:8123"
     volumes:
       - ./model:/usr/src/app/model
+      - /home/git/docker/nsfw-check-api/:/usr/src/app/model
