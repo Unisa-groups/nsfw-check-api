@@ -14,7 +14,7 @@ dependencies = [
     "huggingface-hub==1.6.0",
 ]
 
-[dependency-groups]
+[tool.pdm.dev-dependencies]
 dev = [
     "pytest>=9.0.2",
     "httpx>=0.28.1",
