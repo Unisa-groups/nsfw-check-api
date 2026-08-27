@@ -10,6 +10,7 @@ import io
 # Load model and image processor from local directory
 model_path = os.getenv("MODEL_PATH", "./model")
 model_name = os.getenv("MODEL_NAME", "Falconsai/nsfw_image_detection")
+max_upload_bytes = int(os.getenv("MAX_UPLOAD_BYTES", str(10 * 1024 * 1024)))
 
 def ensure_models_exist():
     # Check for config.json as an indicator that the model is present
@@ -45,7 +46,11 @@ async def heartbeat():
 
 @app.post("/nsfw_check")
 async def check_nsfw(file: UploadFile = File(...)):
+    if file.size is not None and file.size > max_upload_bytes:
+        raise HTTPException(status_code=413, detail="Image too large")
     contents = await file.read()
+    if len(contents) > max_upload_bytes:
+        raise HTTPException(status_code=413, detail="Image too large")
     try:
         image = Image.open(io.BytesIO(contents))
     except UnidentifiedImageError:

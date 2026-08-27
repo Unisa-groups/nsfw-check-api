@@ -1,6 +1,7 @@
 import io
 from PIL import Image
 from fastapi.testclient import TestClient
+import main
 from main import app, is_nsfw
 
 client = TestClient(app)
@@ -51,6 +52,14 @@ def test_check_nsfw_invalid_file():
     # The API should handle this and return 400
     assert response.status_code == 400
     assert response.json()["detail"] == "Invalid image file"
+
+def test_check_nsfw_too_large(monkeypatch):
+    monkeypatch.setattr(main, "max_upload_bytes", 10)
+    response = client.post(
+        "/nsfw_check",
+        files={"file": ("big.png", io.BytesIO(b"x" * 100), "image/png")}
+    )
+    assert response.status_code == 413
 
 def test_test_endpoint():
     response = client.get("/nsfw_test")
