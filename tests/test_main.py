@@ -1,8 +1,10 @@
 import asyncio
 import io
+
 import pytest
-from PIL import Image
 from fastapi.testclient import TestClient
+from PIL import Image
+
 from nsfw_check_api import main
 from nsfw_check_api.main import app, is_nsfw
 
@@ -140,6 +142,24 @@ def test_lifespan_warms_model():
     assert main._load_model.cache_info().currsize == 0
     with TestClient(app):
         assert main._load_model.cache_info().currsize == 1
+
+def test_ensure_models_exist_only_fetches_inference_files(monkeypatch, tmp_path):
+    captured = {}
+
+    def fake_snapshot_download(**kwargs):
+        captured.update(kwargs)
+        (tmp_path / "config.json").write_text("{}")
+
+    monkeypatch.setattr("huggingface_hub.snapshot_download", fake_snapshot_download)
+    monkeypatch.setattr(main, "model_path", str(tmp_path))
+
+    main.ensure_models_exist()
+
+    patterns = captured["allow_patterns"]
+    assert any("safetensors" in p for p in patterns)
+    assert any(p.endswith(".bin") for p in patterns)
+    # the 655 MB optimizer state and the bundled yolo variant are .pt - must be excluded
+    assert not any(p.endswith(".pt") for p in patterns)
 
 def test_test_endpoint():
     response = client.get("/nsfw_test")

@@ -5,12 +5,12 @@ import time
 from contextlib import asynccontextmanager
 from functools import lru_cache
 
-from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.responses import HTMLResponse
-from fastapi.concurrency import run_in_threadpool
-from transformers import AutoModelForImageClassification, ViTImageProcessorPil
 import torch
+from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import HTMLResponse
 from PIL import Image, UnidentifiedImageError
+from transformers import AutoModelForImageClassification, ViTImageProcessorPil
 
 model_path = os.getenv("MODEL_PATH", "./model")
 model_name = os.getenv("MODEL_NAME", "Falconsai/nsfw_image_detection")
@@ -19,6 +19,9 @@ nsfw_threshold = float(os.getenv("NSFW_THRESHOLD", "0.5"))
 # Max inferences running at once in this worker; further requests get 503 rather than piling up
 max_inflight = int(os.getenv("MAX_INFLIGHT", "2"))
 
+# config + processor + weights only; skips optimizer.pt (655 MB) and the bundled yolo .pt
+_MODEL_FILE_PATTERNS = ["*.json", "*.safetensors", "*.bin"]
+
 def ensure_models_exist():
     # Check for config.json as an indicator that the model is present
     config_path = os.path.join(model_path, "config.json")
@@ -26,7 +29,11 @@ def ensure_models_exist():
         from huggingface_hub import snapshot_download
         print(f"Downloading model {model_name} to {model_path}...")
         os.makedirs(model_path, exist_ok=True)
-        snapshot_download(repo_id=model_name, local_dir=model_path)
+        snapshot_download(
+            repo_id=model_name,
+            local_dir=model_path,
+            allow_patterns=_MODEL_FILE_PATTERNS,
+        )
         print(f"Model files downloaded successfully: {model_name}")
 
 @lru_cache(maxsize=1)
@@ -86,7 +93,7 @@ async def check_nsfw(file: UploadFile = File(...)):
             }
             image = img.convert("RGB")
     except (UnidentifiedImageError, OSError, Image.DecompressionBombError, ValueError):
-        raise HTTPException(status_code=400, detail="Invalid image file")
+        raise HTTPException(status_code=400, detail="Invalid image file") from None
 
     if inference_slots.locked():
         raise HTTPException(
