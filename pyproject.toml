@@ -1,7 +1,7 @@
 [project]
-name = "nsfw-api"
+name = "nsfw-check-api"
 version = "0.1.0"
-description = "detects NSFW images"
+description = "Detects NSFW images"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     'torch>=2.9.1; sys_platform == "linux"',
