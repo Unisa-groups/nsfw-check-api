@@ -1,17 +1,20 @@
-FROM astral/uv:python3.12-bookworm-slim
+FROM python:3.12-slim-bookworm
 
 WORKDIR /usr/src/app
-ENV UV_COMPILE_BYTECODE=1
-ENV UV_PROJECT_ENVIRONMENT=/usr/src/app/.venv
 ENV PATH="/usr/src/app/.venv/bin:$PATH"
 ENV MODEL_PATH="/usr/src/app/model"
 ENV MODEL_NAME="Falconsai/nsfw_image_detection"
+ENV PDM_CHECK_UPDATE=false
 
-COPY pyproject.toml ./
-RUN uv sync --no-cache --no-install-project --no-dev && \
-    rm -rf /tmp/* /var/tmp/* /var/lib/apt/lists/*
+RUN pip install --no-cache-dir pdm
+
+# Deps first so this layer is cached until the lockfile changes
+COPY pyproject.toml pdm.lock ./
+RUN pdm install --prod --no-self --frozen-lockfile && \
+    rm -rf /root/.cache /tmp/* /var/tmp/*
 
 COPY . ./
+RUN pdm install --prod --frozen-lockfile
 
 EXPOSE 8123
-CMD ["uv", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8123"]
+CMD ["uvicorn", "nsfw_check_api.main:app", "--host", "0.0.0.0", "--port", "8123"]

@@ -1,8 +1,8 @@
 import io
 from PIL import Image
 from fastapi.testclient import TestClient
-import main
-from main import app, is_nsfw
+from nsfw_check_api import main
+from nsfw_check_api.main import app, is_nsfw
 
 client = TestClient(app)
 
