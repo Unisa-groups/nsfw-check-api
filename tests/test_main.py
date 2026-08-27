@@ -149,6 +149,7 @@ def test_ensure_models_exist_only_fetches_inference_files(monkeypatch, tmp_path)
     def fake_snapshot_download(**kwargs):
         captured.update(kwargs)
         (tmp_path / "config.json").write_text("{}")
+        (tmp_path / "model.safetensors").write_bytes(b"x")
 
     monkeypatch.setattr("huggingface_hub.snapshot_download", fake_snapshot_download)
     monkeypatch.setattr(main, "model_path", str(tmp_path))
@@ -156,10 +157,37 @@ def test_ensure_models_exist_only_fetches_inference_files(monkeypatch, tmp_path)
     main.ensure_models_exist()
 
     patterns = captured["allow_patterns"]
-    assert any("safetensors" in p for p in patterns)
-    assert any(p.endswith(".bin") for p in patterns)
-    # the 655 MB optimizer state and the bundled yolo variant are .pt - must be excluded
-    assert not any(p.endswith(".pt") for p in patterns)
+    assert any(p.endswith(".safetensors") for p in patterns)
+    # pickle weights (.bin), the 655 MB optimizer state and yolo variant (.pt) must be excluded
+    assert not any(p.endswith((".bin", ".pt")) for p in patterns)
+
+def test_ensure_models_exist_refetches_when_only_config_present(monkeypatch, tmp_path):
+    # config.json alone is not "present" - a second worker seeing it mid-download
+    # would otherwise skip and then fail to load missing weights
+    (tmp_path / "config.json").write_text("{}")
+    called = []
+
+    def fake_snapshot_download(**kwargs):
+        called.append(kwargs)
+        (tmp_path / "model.safetensors").write_bytes(b"x")
+
+    monkeypatch.setattr("huggingface_hub.snapshot_download", fake_snapshot_download)
+    monkeypatch.setattr(main, "model_path", str(tmp_path))
+
+    main.ensure_models_exist()
+    assert called
+
+def test_ensure_models_exist_skips_when_weights_present(monkeypatch, tmp_path):
+    (tmp_path / "config.json").write_text("{}")
+    (tmp_path / "model.safetensors").write_bytes(b"x")
+
+    def fail(**kwargs):
+        raise AssertionError("snapshot_download should not run when the model is complete")
+
+    monkeypatch.setattr("huggingface_hub.snapshot_download", fail)
+    monkeypatch.setattr(main, "model_path", str(tmp_path))
+
+    main.ensure_models_exist()
 
 def test_test_endpoint():
     response = client.get("/nsfw_test")

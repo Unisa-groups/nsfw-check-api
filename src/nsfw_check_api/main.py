@@ -19,16 +19,28 @@ nsfw_threshold = float(os.getenv("NSFW_THRESHOLD", "0.5"))
 # Max inferences running at once in this worker; further requests get 503 rather than piling up
 max_inflight = int(os.getenv("MAX_INFLIGHT", "2"))
 
-# config + processor + weights only; skips optimizer.pt (655 MB) and the bundled yolo .pt
-_MODEL_FILE_PATTERNS = ["*.json", "*.safetensors", "*.bin"]
+# config + processor + safetensors weights only: skips optimizer.pt (655 MB),
+# the bundled yolo .pt, and the redundant pickle pytorch_model.bin.
+# Add "*.bin" here if you point MODEL_NAME at a model with no safetensors.
+_MODEL_FILE_PATTERNS = ["*.json", "*.safetensors"]
+
+def _model_present():
+    # both a config and a weights file - config.json alone means a download is
+    # still in flight (it's tiny and lands first)
+    have = set(os.listdir(model_path)) if os.path.isdir(model_path) else set()
+    return "config.json" in have and bool(have & {"model.safetensors", "pytorch_model.bin"})
 
 def ensure_models_exist():
-    # Check for config.json as an indicator that the model is present
-    config_path = os.path.join(model_path, "config.json")
-    if not os.path.exists(config_path):
+    if _model_present():
+        return
+    from filelock import FileLock
+    os.makedirs(model_path, exist_ok=True)
+    # serialize across uvicorn workers: only one downloads, the rest wait then find it
+    with FileLock(os.path.join(model_path, ".download.lock")):
+        if _model_present():
+            return
         from huggingface_hub import snapshot_download
         print(f"Downloading model {model_name} to {model_path}...")
-        os.makedirs(model_path, exist_ok=True)
         snapshot_download(
             repo_id=model_name,
             local_dir=model_path,

@@ -7,6 +7,7 @@ dependencies = [
     'torch>=2.9.1,<2.10; sys_platform == "linux"',
     "transformers>=5.3.0",
     "fastapi>=0.135.1",
+    "filelock>=3.12",
     "numpy>=2.4.3",
     "pillow>=12.1.1",
     "python-multipart>=0.0.22",

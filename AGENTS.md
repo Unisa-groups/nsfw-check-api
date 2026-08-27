@@ -35,9 +35,11 @@ After changing dependencies: `pdm add ... ` / edit `pyproject.toml`, then
   expect the files already in `./model`; CI restores `model/` from an
   `actions/cache` and fetches it once on a miss (outside pytest, so offline
   mode doesn't apply).
-- `ensure_models_exist()` only pulls `*.json` / `*.safetensors` / `*.bin`
-  (`_MODEL_FILE_PATTERNS`) — the HF repo also ships a 655 MB `optimizer.pt`
-  and a quantized yolo variant that inference never touches.
+- `ensure_models_exist()` pulls only `*.json` / `*.safetensors`
+  (`_MODEL_FILE_PATTERNS`, ~330 MB) — the HF repo also ships `optimizer.pt`
+  (655 MB), a yolo variant, and a redundant `pytorch_model.bin`. It's guarded
+  by a `FileLock` so that with `WEB_CONCURRENCY>1` only one worker downloads
+  and a partial download can't be mistaken for a complete one.
 - `torch` is pinned to a CPU-only wheel (`[[tool.pdm.source]]`) to keep the
   image small. Don't switch to `AutoImageProcessor` — it pulls in torchvision;
   `ViTImageProcessorPil` is deliberate.
