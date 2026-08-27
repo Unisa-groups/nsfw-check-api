@@ -1,5 +1,5 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.responses import HTMLResponse
 from fastapi.concurrency import run_in_threadpool
 from transformers import AutoModelForImageClassification, AutoImageProcessor
 import torch
@@ -63,13 +63,10 @@ async def check_nsfw(file: UploadFile = File(...)):
     except (UnidentifiedImageError, OSError, Image.DecompressionBombError, ValueError):
         raise HTTPException(status_code=400, detail="Invalid image file")
     is_nsfw_bool, prob = await run_in_threadpool(is_nsfw, image)
-    prob = round(prob, 4)
-    return JSONResponse(
-        content={
-            "is_nsfw": is_nsfw_bool,
-            "nsfw_probability": prob
-        }
-    )
+    return {
+        "is_nsfw": is_nsfw_bool,
+        "nsfw_probability": round(prob, 4),
+    }
 
 
 @app.get("/nsfw_test")
