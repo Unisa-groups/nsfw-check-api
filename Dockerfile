@@ -1,20 +1,20 @@
 FROM python:3.12-slim-bookworm
 
 WORKDIR /usr/src/app
-ENV PATH="/usr/src/app/.venv/bin:$PATH"
-ENV MODEL_PATH="/usr/src/app/model"
-ENV MODEL_NAME="Falconsai/nsfw_image_detection"
-ENV PDM_CHECK_UPDATE=false
+ENV MODEL_PATH=/usr/src/app/model \
+    MODEL_NAME=Falconsai/nsfw_image_detection \
+    PDM_CHECK_UPDATE=false \
+    PATH=/usr/src/app/.venv/bin:$PATH
 
 RUN pip install --no-cache-dir pdm
 
-# Deps first so this layer is cached until the lockfile changes
+# Locked prod deps first so this layer is cached until pyproject/pdm.lock change.
+# pdm replays the lock (incl. the CPU-only torch source) into an in-project .venv.
 COPY pyproject.toml pdm.lock ./
-RUN pdm install --prod --no-self --frozen-lockfile && \
-    rm -rf /root/.cache /tmp/* /var/tmp/*
+RUN pdm install --prod --no-self --frozen-lockfile && rm -rf /root/.cache
 
-COPY . ./
-RUN pdm install --prod --frozen-lockfile
+COPY src ./src
+RUN pdm install --prod --frozen-lockfile && rm -rf /root/.cache
 
 EXPOSE 8123
 CMD ["uvicorn", "nsfw_check_api.main:app", "--host", "0.0.0.0", "--port", "8123"]

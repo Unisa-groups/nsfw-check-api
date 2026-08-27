@@ -1,13 +1,13 @@
+from functools import lru_cache
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.concurrency import run_in_threadpool
-from transformers import AutoModelForImageClassification, AutoImageProcessor
+from transformers import AutoModelForImageClassification, ViTImageProcessorPil
 import torch
 from PIL import Image, UnidentifiedImageError
 import os
 import io
 
-# Load model and image processor from local directory
 model_path = os.getenv("MODEL_PATH", "./model")
 model_name = os.getenv("MODEL_NAME", "Falconsai/nsfw_image_detection")
 max_upload_bytes = int(os.getenv("MAX_UPLOAD_BYTES", str(10 * 1024 * 1024)))
@@ -23,23 +23,25 @@ def ensure_models_exist():
         snapshot_download(repo_id=model_name, local_dir=model_path)
         print(f"Model files downloaded successfully: {model_name}")
 
-ensure_models_exist()
-
-image_processor = AutoImageProcessor.from_pretrained(model_path)
-nsfw_model = AutoModelForImageClassification.from_pretrained(model_path)
-# Resolve the NSFW class index from the model config instead of assuming it is 1
-# (this model stores label2id values as strings, hence int())
-_label2id = {label.lower(): int(idx) for label, idx in nsfw_model.config.label2id.items()}
-nsfw_index = _label2id["nsfw"]
+@lru_cache(maxsize=1)
+def _load_model():
+    # Lazy so importing this module (e.g. in tests) doesn't pull in the model.
+    # ViTImageProcessorPil is the PIL-only processor, so torchvision isn't required.
+    ensure_models_exist()
+    processor = ViTImageProcessorPil.from_pretrained(model_path)
+    model = AutoModelForImageClassification.from_pretrained(model_path)
+    # Resolve the NSFW class index from the config instead of assuming it is 1
+    # (this model stores label2id values as strings, hence int())
+    label2id = {label.lower(): int(idx) for label, idx in model.config.label2id.items()}
+    return processor, model, label2id["nsfw"]
 
 app = FastAPI()
 
 def is_nsfw(image):
-    # Preprocess the image
-    inputs = image_processor(images=image, return_tensors="pt")
-    # Predict
+    processor, model, nsfw_index = _load_model()
+    inputs = processor(images=image, return_tensors="pt")
     with torch.no_grad():
-        outputs = nsfw_model(**inputs)
+        outputs = model(**inputs)
     probabilities = torch.nn.functional.softmax(outputs.logits, dim=-1)
     nsfw_prob = probabilities[0][nsfw_index].item()
     return nsfw_prob > nsfw_threshold, nsfw_prob

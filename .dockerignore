@@ -19,3 +19,9 @@ htmlcov/
 *.swo
 .DS_Store
 model/
+.git/
+.github/
+tests/
+testimages/
+*.md
+docker-compose*.yml

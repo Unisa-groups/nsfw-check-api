@@ -1,4 +1,5 @@
 import io
+import pytest
 from PIL import Image
 from fastapi.testclient import TestClient
 from nsfw_check_api import main
@@ -6,6 +7,7 @@ from nsfw_check_api.main import app, is_nsfw
 
 client = TestClient(app)
 
+@pytest.mark.needs_model
 def test_is_nsfw_function():
     # Create a small blank image for testing
     image = Image.new('RGB', (100, 100), color='red')
@@ -22,6 +24,7 @@ def test_heartbeat_endpoint():
     assert response.status_code == 200
     assert response.json() == {"status": "alive"}
 
+@pytest.mark.needs_model
 def test_check_nsfw_endpoint():
     # Create a small blank image in memory
     image = Image.new('RGB', (100, 100), color='blue')
@@ -68,6 +71,7 @@ def test_check_nsfw_truncated_image():
     assert response.status_code == 400
     assert response.json()["detail"] == "Invalid image file"
 
+@pytest.mark.needs_model
 def test_check_nsfw_rgba_image():
     # Non-RGB images must be converted, not rejected or misclassified.
     image = Image.new('RGBA', (100, 100), color=(0, 0, 255, 128))
