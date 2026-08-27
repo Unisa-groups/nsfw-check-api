@@ -5,5 +5,4 @@ services:
     ports:
       - "30000:8123"
     volumes:
-      - ./model:/usr/src/app/model
       - /home/git/docker/nsfw-check-api/:/usr/src/app/model
