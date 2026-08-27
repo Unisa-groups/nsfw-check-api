@@ -2,6 +2,6 @@ services:
   nsfw-check-api:
     build: .
     ports:
-      - "8123:8123"
+      - "30000:30000"
     volumes:
       - ./model:/usr/src/app/model

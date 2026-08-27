@@ -16,5 +16,5 @@ RUN pdm install --prod --no-self --frozen-lockfile && rm -rf /root/.cache
 COPY src ./src
 RUN pdm install --prod --frozen-lockfile && rm -rf /root/.cache
 
-EXPOSE 8123
-CMD ["uvicorn", "nsfw_check_api.main:app", "--host", "0.0.0.0", "--port", "8123"]
+EXPOSE 30000
+CMD ["uvicorn", "nsfw_check_api.main:app", "--host", "0.0.0.0", "--port", "30000"]

@@ -3,6 +3,6 @@ services:
     image: ghcr.io/unisa-groups/nsfw-check-api:sha-3d1eb4e
     restart: unless-stopped
     ports:
-      - "30000:8123"
+      - "30000:30000"
     volumes:
       - /home/git/docker/nsfw-check-api/:/usr/src/app/model
