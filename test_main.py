@@ -48,10 +48,39 @@ def test_check_nsfw_invalid_file():
         "/nsfw_check",
         files={"file": ("test.txt", io.BytesIO(b"not an image"), "text/plain")}
     )
-    
+
     # The API should handle this and return 400
     assert response.status_code == 400
     assert response.json()["detail"] == "Invalid image file"
+
+def test_check_nsfw_truncated_image():
+    # A file with a valid PNG header but a cut-off data stream: Image.open() succeeds,
+    # the decode inside the endpoint does not.
+    image = Image.new('RGB', (100, 100), color='green')
+    buf = io.BytesIO()
+    image.save(buf, format='PNG')
+    truncated = buf.getvalue()[:60]
+
+    response = client.post(
+        "/nsfw_check",
+        files={"file": ("truncated.png", io.BytesIO(truncated), "image/png")}
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid image file"
+
+def test_check_nsfw_rgba_image():
+    # Non-RGB images must be converted, not rejected or misclassified.
+    image = Image.new('RGBA', (100, 100), color=(0, 0, 255, 128))
+    buf = io.BytesIO()
+    image.save(buf, format='PNG')
+    buf.seek(0)
+
+    response = client.post(
+        "/nsfw_check",
+        files={"file": ("rgba.png", buf, "image/png")}
+    )
+    assert response.status_code == 200
+    assert not response.json()["is_nsfw"]
 
 def test_check_nsfw_too_large(monkeypatch):
     monkeypatch.setattr(main, "max_upload_bytes", 10)

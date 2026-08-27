@@ -52,8 +52,10 @@ async def check_nsfw(file: UploadFile = File(...)):
     if len(contents) > max_upload_bytes:
         raise HTTPException(status_code=413, detail="Image too large")
     try:
-        image = Image.open(io.BytesIO(contents))
-    except UnidentifiedImageError:
+        # convert() forces a full decode, so truncated/corrupt/bomb images fail here, not mid-inference
+        with Image.open(io.BytesIO(contents)) as img:
+            image = img.convert("RGB")
+    except (UnidentifiedImageError, OSError, Image.DecompressionBombError, ValueError):
         raise HTTPException(status_code=400, detail="Invalid image file")
     is_nsfw_bool, prob = await run_in_threadpool(is_nsfw, image)
     prob = round(prob, 4)
