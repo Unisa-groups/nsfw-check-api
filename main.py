@@ -1,6 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse, HTMLResponse
-from transformers import AutoTokenizer, AutoModelForImageTextToText, AutoModelForImageClassification, AutoImageProcessor
+from transformers import AutoModelForImageClassification, AutoImageProcessor
 import torch
 from PIL import Image, UnidentifiedImageError
 import os
