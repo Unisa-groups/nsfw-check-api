@@ -20,5 +20,5 @@ RUN pdm install --prod --frozen-lockfile && rm -rf /root/.cache
 ENV WEB_CONCURRENCY=2 \
     OMP_NUM_THREADS=1
 
-EXPOSE 30000
-CMD ["uvicorn", "nsfw_check_api.main:app", "--host", "0.0.0.0", "--port", "30000"]
+EXPOSE 15000
+CMD ["uvicorn", "nsfw_check_api.main:app", "--host", "0.0.0.0", "--port", "15000"]

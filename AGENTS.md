@@ -18,7 +18,7 @@ Dependency manager is **PDM** (`pdm.lock` is committed).
 pdm install                       # sync venv from the lock
 pdm run pytest                    # full suite (needs model/ populated)
 pdm run pytest -m "not needs_model"   # what CI runs; no model required
-pdm run uvicorn nsfw_check_api.main:app --port 30000
+pdm run uvicorn nsfw_check_api.main:app --port 15000
 ```
 
 After changing dependencies: `pdm add ... ` / edit `pyproject.toml`, then

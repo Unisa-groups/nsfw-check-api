@@ -11,7 +11,7 @@ on the same host.
 A small HTTP service that classifies an image as NSFW or not. Screen
 user-supplied images through it before storing or serving them.
 
-**Base URL:** `http://localhost:30000` (the container publishes port 30000).
+**Base URL:** `http://localhost:15000` (the container publishes port 15000).
 No authentication.
 
 ### `POST /nsfw_check`
@@ -63,7 +63,7 @@ score if you want your own cutoff; `meta.threshold` is the server-side one.
 import time
 import httpx
 
-NSFW_API = "http://localhost:30000"
+NSFW_API = "http://localhost:15000"
 
 
 def check_nsfw(image_bytes: bytes, filename: str = "image", *, retries: int = 3) -> dict:
@@ -100,5 +100,5 @@ one place.
 ## curl
 
 ```bash
-curl -sS -F "file=@photo.jpg" http://localhost:30000/nsfw_check
+curl -sS -F "file=@photo.jpg" http://localhost:15000/nsfw_check
 ```
