@@ -36,3 +36,7 @@ testpaths = ["tests"]
 markers = [
     "needs_model: requires the model files in ./model (skipped in CI)",
 ]
+filterwarnings = [
+    # Starlette's TestClient nags about a future httpx2; nothing to do yet
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated",
+]
