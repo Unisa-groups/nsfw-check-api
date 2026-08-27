@@ -5,3 +5,9 @@ services:
       - "15000:15000"
     volumes:
       - ./model:/usr/src/app/model
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:15000/heartbeat', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
