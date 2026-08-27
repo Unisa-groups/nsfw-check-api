@@ -16,8 +16,9 @@ Dependency manager is **PDM** (`pdm.lock` is committed).
 
 ```bash
 pdm install                       # sync venv from the lock
+pdm run ruff check .              # lint (CI gate)
 pdm run pytest                    # full suite (needs model/ populated)
-pdm run pytest -m "not needs_model"   # what CI runs; no model required
+pdm run pytest -m "not needs_model"   # subset that needs no model
 pdm run uvicorn nsfw_check_api.main:app --port 15000
 ```
 
@@ -31,7 +32,12 @@ After changing dependencies: `pdm add ... ` / edit `pyproject.toml`, then
   doesn't fire and importing the module stays model-free.
 - Tests set `HF_HUB_OFFLINE=1` in `tests/conftest.py` — a test run must never
   download the model. Tests that actually need it are marked `needs_model` and
-  expect the files already in `./model`.
+  expect the files already in `./model`; CI restores `model/` from an
+  `actions/cache` and fetches it once on a miss (outside pytest, so offline
+  mode doesn't apply).
+- `ensure_models_exist()` only pulls `*.json` / `*.safetensors` / `*.bin`
+  (`_MODEL_FILE_PATTERNS`) — the HF repo also ships a 655 MB `optimizer.pt`
+  and a quantized yolo variant that inference never touches.
 - `torch` is pinned to a CPU-only wheel (`[[tool.pdm.source]]`) to keep the
   image small. Don't switch to `AutoImageProcessor` — it pulls in torchvision;
   `ViTImageProcessorPil` is deliberate.
@@ -59,9 +65,10 @@ After changing dependencies: `pdm add ... ` / edit `pyproject.toml`, then
 
 ## Docker
 
-`Dockerfile` builds on `python:3.12-slim` via `pdm install`. `CI` pushes to
-`ghcr.io/<repo>` on `main`. The model is not baked in — mount it at
-`/usr/src/app/model`.
+`Dockerfile` builds on `python:3.12-slim` via `pdm install`. Both compose
+files define a `healthcheck` hitting `/heartbeat` (podman-compose doesn't
+inherit an image `HEALTHCHECK`). `CI` pushes to `ghcr.io/<repo>` on `main`.
+The model is not baked in — mount it at `/usr/src/app/model`.
 
 ## Commits
 
