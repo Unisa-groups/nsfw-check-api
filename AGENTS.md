@@ -25,13 +25,36 @@ After changing dependencies: `pdm add ... ` / edit `pyproject.toml`, then
 
 ## The model
 
-- Loaded lazily on the first `/nsfw_check` request (`_load_model`), not at import.
+- `_load_model` is `@lru_cache`d and warmed in the FastAPI `lifespan` on
+  startup. Tests use a module-level `TestClient` (no `with`), so lifespan
+  doesn't fire and importing the module stays model-free.
 - Tests set `HF_HUB_OFFLINE=1` in `tests/conftest.py` — a test run must never
   download the model. Tests that actually need it are marked `needs_model` and
   expect the files already in `./model`.
 - `torch` is pinned to a CPU-only wheel (`[[tool.pdm.source]]`) to keep the
   image small. Don't switch to `AutoImageProcessor` — it pulls in torchvision;
   `ViTImageProcessorPil` is deliberate.
+
+## Concurrency
+
+- One `uvicorn` process has one GIL, so parallelism comes from **worker
+  processes**: `WEB_CONCURRENCY` (Docker default `2`) sets the count; each
+  worker loads its own ~350 MB model copy.
+- `OMP_NUM_THREADS=1` (Docker) keeps each worker's torch to one thread so N
+  workers don't oversubscribe the cores.
+- `MAX_INFLIGHT` (default `2`) is a per-worker `asyncio.Semaphore` around
+  inference. When it's full, `/nsfw_check` returns `503` + `Retry-After: 1`
+  instead of queueing. System capacity ≈ `WEB_CONCURRENCY × MAX_INFLIGHT`.
+
+## `/nsfw_check` response
+
+```json
+{"is_nsfw": true, "nsfw_probability": 0.9982,
+ "meta": {"inference_ms": 41.2, "total_ms": 47.9, "threshold": 0.5,
+          "model": "...", "image": {"width": ..., "height": ..., "format": ...,
+          "mode": ..., "bytes": ...}, "worker_pid": 7}}
+```
+`meta` is diagnostic and cheap to compute; the top level is the answer.
 
 ## Docker
 

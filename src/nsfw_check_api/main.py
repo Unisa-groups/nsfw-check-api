@@ -1,17 +1,23 @@
+import asyncio
+import io
+import os
+import time
+from contextlib import asynccontextmanager
 from functools import lru_cache
+
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.concurrency import run_in_threadpool
 from transformers import AutoModelForImageClassification, ViTImageProcessorPil
 import torch
 from PIL import Image, UnidentifiedImageError
-import os
-import io
 
 model_path = os.getenv("MODEL_PATH", "./model")
 model_name = os.getenv("MODEL_NAME", "Falconsai/nsfw_image_detection")
 max_upload_bytes = int(os.getenv("MAX_UPLOAD_BYTES", str(10 * 1024 * 1024)))
 nsfw_threshold = float(os.getenv("NSFW_THRESHOLD", "0.5"))
+# Max inferences running at once in this worker; further requests get 503 rather than piling up
+max_inflight = int(os.getenv("MAX_INFLIGHT", "2"))
 
 def ensure_models_exist():
     # Check for config.json as an indicator that the model is present
@@ -35,7 +41,16 @@ def _load_model():
     label2id = {label.lower(): int(idx) for label, idx in model.config.label2id.items()}
     return processor, model, label2id["nsfw"]
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(_app):
+    # Warm the model before serving so the first request isn't slow and a burst
+    # of concurrent first requests doesn't each trigger a load.
+    _load_model()
+    yield
+
+app = FastAPI(lifespan=lifespan)
+
+inference_slots = asyncio.Semaphore(max_inflight)
 
 def is_nsfw(image):
     processor, model, nsfw_index = _load_model()
@@ -53,6 +68,7 @@ async def heartbeat():
 
 @app.post("/nsfw_check")
 async def check_nsfw(file: UploadFile = File(...)):
+    started = time.perf_counter()
     if file.size is not None and file.size > max_upload_bytes:
         raise HTTPException(status_code=413, detail="Image too large")
     contents = await file.read()
@@ -61,13 +77,39 @@ async def check_nsfw(file: UploadFile = File(...)):
     try:
         # convert() forces a full decode, so truncated/corrupt/bomb images fail here, not mid-inference
         with Image.open(io.BytesIO(contents)) as img:
+            image_meta = {
+                "width": img.width,
+                "height": img.height,
+                "format": img.format,
+                "mode": img.mode,
+                "bytes": len(contents),
+            }
             image = img.convert("RGB")
     except (UnidentifiedImageError, OSError, Image.DecompressionBombError, ValueError):
         raise HTTPException(status_code=400, detail="Invalid image file")
-    is_nsfw_bool, prob = await run_in_threadpool(is_nsfw, image)
+
+    if inference_slots.locked():
+        raise HTTPException(
+            status_code=503,
+            detail="Server busy, retry shortly",
+            headers={"Retry-After": "1"},
+        )
+    async with inference_slots:
+        inference_started = time.perf_counter()
+        is_nsfw_bool, prob = await run_in_threadpool(is_nsfw, image)
+        inference_ms = (time.perf_counter() - inference_started) * 1000
+
     return {
         "is_nsfw": is_nsfw_bool,
         "nsfw_probability": round(prob, 4),
+        "meta": {
+            "inference_ms": round(inference_ms, 1),
+            "total_ms": round((time.perf_counter() - started) * 1000, 1),
+            "threshold": nsfw_threshold,
+            "model": model_name,
+            "image": image_meta,
+            "worker_pid": os.getpid(),
+        },
     }
 
 

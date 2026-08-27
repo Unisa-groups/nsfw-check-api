@@ -1,3 +1,4 @@
+import asyncio
 import io
 import pytest
 from PIL import Image
@@ -93,6 +94,52 @@ def test_check_nsfw_too_large(monkeypatch):
         files={"file": ("big.png", io.BytesIO(b"x" * 100), "image/png")}
     )
     assert response.status_code == 413
+
+@pytest.mark.needs_model
+def test_check_nsfw_meta():
+    image = Image.new('RGBA', (120, 90), color=(0, 0, 255, 255))
+    buf = io.BytesIO()
+    image.save(buf, format='PNG')
+    png_bytes = buf.getvalue()
+
+    data = client.post(
+        "/nsfw_check",
+        files={"file": ("m.png", io.BytesIO(png_bytes), "image/png")},
+    ).json()
+
+    meta = data["meta"]
+    assert meta["inference_ms"] > 0
+    assert meta["total_ms"] >= meta["inference_ms"]
+    assert meta["threshold"] == 0.5
+    assert meta["model"] == main.model_name
+    assert meta["image"]["width"] == 120
+    assert meta["image"]["height"] == 90
+    assert meta["image"]["format"] == "PNG"
+    assert meta["image"]["mode"] == "RGBA"
+    assert meta["image"]["bytes"] == len(png_bytes)
+    assert isinstance(meta["worker_pid"], int)
+
+def test_check_nsfw_busy(monkeypatch):
+    # No inference slots free -> reject immediately, don't queue
+    monkeypatch.setattr(main, "inference_slots", asyncio.Semaphore(0))
+    image = Image.new('RGB', (50, 50), color='red')
+    buf = io.BytesIO()
+    image.save(buf, format='PNG')
+    buf.seek(0)
+
+    response = client.post(
+        "/nsfw_check",
+        files={"file": ("busy.png", buf, "image/png")},
+    )
+    assert response.status_code == 503
+    assert response.headers["retry-after"] == "1"
+
+@pytest.mark.needs_model
+def test_lifespan_warms_model():
+    main._load_model.cache_clear()
+    assert main._load_model.cache_info().currsize == 0
+    with TestClient(app):
+        assert main._load_model.cache_info().currsize == 1
 
 def test_test_endpoint():
     response = client.get("/nsfw_test")
