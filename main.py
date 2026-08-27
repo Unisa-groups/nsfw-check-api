@@ -11,6 +11,7 @@ import io
 model_path = os.getenv("MODEL_PATH", "./model")
 model_name = os.getenv("MODEL_NAME", "Falconsai/nsfw_image_detection")
 max_upload_bytes = int(os.getenv("MAX_UPLOAD_BYTES", str(10 * 1024 * 1024)))
+nsfw_threshold = float(os.getenv("NSFW_THRESHOLD", "0.5"))
 
 def ensure_models_exist():
     # Check for config.json as an indicator that the model is present
@@ -26,6 +27,10 @@ ensure_models_exist()
 
 image_processor = AutoImageProcessor.from_pretrained(model_path)
 nsfw_model = AutoModelForImageClassification.from_pretrained(model_path)
+# Resolve the NSFW class index from the model config instead of assuming it is 1
+# (this model stores label2id values as strings, hence int())
+_label2id = {label.lower(): int(idx) for label, idx in nsfw_model.config.label2id.items()}
+nsfw_index = _label2id["nsfw"]
 
 app = FastAPI()
 
@@ -36,8 +41,8 @@ def is_nsfw(image):
     with torch.no_grad():
         outputs = nsfw_model(**inputs)
     probabilities = torch.nn.functional.softmax(outputs.logits, dim=-1)
-    nsfw_prob = probabilities[0][1].item()  # Index 1 is NSFW
-    return nsfw_prob > 0.5, nsfw_prob
+    nsfw_prob = probabilities[0][nsfw_index].item()
+    return nsfw_prob > nsfw_threshold, nsfw_prob
 
 @app.get("/heartbeat")
 async def heartbeat():
