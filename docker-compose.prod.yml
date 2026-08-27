@@ -1,6 +1,6 @@
 services:
   nsfw-check-api:
-    image: ghcr.io/unisa-groups/nsfw-check-api:sha-3d1eb4e
+    image: ghcr.io/unisa-groups/nsfw-check-api:sha-be3341e
     restart: unless-stopped
     ports:
       - "15000:15000"
