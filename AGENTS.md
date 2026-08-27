@@ -8,6 +8,7 @@ FastAPI service that classifies an uploaded image as NSFW or not, using the
 - `src/nsfw_check_api/main.py` — the whole app (endpoints + inference)
 - `tests/` — pytest suite
 - `model/` — model weights, git-ignored, mounted as a volume in Docker
+- `docs/consuming-this-api.md` — integration guide for projects that call this service
 
 ## Commands
 
