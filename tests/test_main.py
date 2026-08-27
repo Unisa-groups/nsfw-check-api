@@ -143,6 +143,22 @@ def test_lifespan_warms_model():
     with TestClient(app):
         assert main._load_model.cache_info().currsize == 1
 
+@pytest.mark.needs_model
+def test_logs_on_startup(caplog):
+    with caplog.at_level("INFO", logger="uvicorn.error"), TestClient(app):
+        pass
+    assert any("ready" in r.message for r in caplog.records)
+
+@pytest.mark.needs_model
+def test_logs_result_per_image(caplog):
+    image = Image.new('RGB', (30, 30), color='red')
+    buf = io.BytesIO()
+    image.save(buf, format='PNG')
+    buf.seek(0)
+    with caplog.at_level("INFO", logger="uvicorn.error"):
+        client.post("/nsfw_check", files={"file": ("x.png", buf, "image/png")})
+    assert any("is_nsfw=" in r.message for r in caplog.records)
+
 def test_ensure_models_exist_only_fetches_inference_files(monkeypatch, tmp_path):
     captured = {}
 

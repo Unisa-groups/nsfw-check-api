@@ -65,6 +65,10 @@ After changing dependencies: `pdm add ... ` / edit `pyproject.toml`, then
 ```
 `meta` is diagnostic and cheap to compute; the top level is the answer.
 
+Each worker logs `... ready: model=... pid=...` once on startup and
+`nsfw_check: is_nsfw=... probability=...` per image, via the `uvicorn.error`
+logger so the lines share uvicorn's output and formatting.
+
 ## Docker
 
 `Dockerfile` builds on `python:3.12-slim` via `pdm install`. Both compose

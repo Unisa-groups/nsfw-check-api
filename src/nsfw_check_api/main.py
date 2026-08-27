@@ -1,5 +1,6 @@
 import asyncio
 import io
+import logging
 import os
 import time
 from contextlib import asynccontextmanager
@@ -11,6 +12,9 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse
 from PIL import Image, UnidentifiedImageError
 from transformers import AutoModelForImageClassification, ViTImageProcessorPil
+
+# "uvicorn.error" is uvicorn's general logger - lines land in the server's own output
+logger = logging.getLogger("uvicorn.error")
 
 model_path = os.getenv("MODEL_PATH", "./model")
 model_name = os.getenv("MODEL_NAME", "Falconsai/nsfw_image_detection")
@@ -65,6 +69,7 @@ async def lifespan(_app):
     # Warm the model before serving so the first request isn't slow and a burst
     # of concurrent first requests doesn't each trigger a load.
     _load_model()
+    logger.info("nsfw-check-api ready: model=%s pid=%d", model_name, os.getpid())
     yield
 
 app = FastAPI(lifespan=lifespan)
@@ -118,6 +123,7 @@ async def check_nsfw(file: UploadFile = File(...)):
         is_nsfw_bool, prob = await run_in_threadpool(is_nsfw, image)
         inference_ms = (time.perf_counter() - inference_started) * 1000
 
+    logger.info("nsfw_check: is_nsfw=%s probability=%.4f", is_nsfw_bool, round(prob, 4))
     return {
         "is_nsfw": is_nsfw_bool,
         "nsfw_probability": round(prob, 4),
