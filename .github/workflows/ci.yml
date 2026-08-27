@@ -39,9 +39,20 @@ jobs:
       - name: Install dependencies
         run: pdm install
 
-      # needs_model tests require the ~1 GB model download, which CI must not do
+      - name: Lint
+        run: pdm run ruff check .
+
+      - name: Cache the model
+        uses: actions/cache@v4
+        with:
+          path: model
+          key: hf-model-falconsai-nsfw-v1
+
+      - name: Fetch the model if not cached
+        run: pdm run python -c "from nsfw_check_api.main import ensure_models_exist; ensure_models_exist()"
+
       - name: Test
-        run: pdm run pytest -m "not needs_model"
+        run: pdm run pytest
 
   publish:
     needs: test
