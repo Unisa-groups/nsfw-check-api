@@ -59,6 +59,28 @@ def test_check_nsfw_invalid_file():
     assert response.status_code == 400
     assert response.json()["detail"] == "Invalid image file"
 
+def test_logs_request_line_and_rejection(caplog):
+    with caplog.at_level("INFO", logger="uvicorn.error"):
+        client.post(
+            "/nsfw_check",
+            files={"file": ("bad.txt", io.BytesIO(b"not an image"), "text/plain")},
+        )
+    msgs = [r.message for r in caplog.records]
+    assert any("nsfw_check: request file=" in m for m in msgs)
+    assert any("400" in m and "undecodable" in m for m in msgs)
+
+
+def test_logs_busy_rejection(caplog, monkeypatch):
+    monkeypatch.setattr(main, "inference_slots", asyncio.Semaphore(0))
+    image = Image.new("RGB", (50, 50), color="red")
+    buf = io.BytesIO()
+    image.save(buf, format="PNG")
+    buf.seek(0)
+    with caplog.at_level("INFO", logger="uvicorn.error"):
+        client.post("/nsfw_check", files={"file": ("busy.png", buf, "image/png")})
+    assert any("503" in r.message and "busy" in r.message for r in caplog.records)
+
+
 def test_check_nsfw_truncated_image():
     # A file with a valid PNG header but a cut-off data stream: Image.open() succeeds,
     # the decode inside the endpoint does not.

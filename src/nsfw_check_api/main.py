@@ -68,6 +68,11 @@ def _load_model():
 async def lifespan(_app):
     # Warm the model before serving so the first request isn't slow and a burst
     # of concurrent first requests doesn't each trigger a load.
+    logger.info(
+        "nsfw-check-api starting: loading model %s (pid %d, threshold %.2f, "
+        "max_inflight %d)...",
+        model_name, os.getpid(), nsfw_threshold, max_inflight,
+    )
     _load_model()
     logger.info("nsfw-check-api ready: model=%s pid=%d", model_name, os.getpid())
     yield
@@ -93,10 +98,22 @@ async def heartbeat():
 @app.post("/nsfw_check")
 async def check_nsfw(file: UploadFile = File(...)):
     started = time.perf_counter()
+    logger.info(
+        "nsfw_check: request file=%r content_type=%s declared_size=%s",
+        file.filename, file.content_type, file.size,
+    )
     if file.size is not None and file.size > max_upload_bytes:
+        logger.warning(
+            "nsfw_check: 413 file=%r declared_size=%d > limit=%d",
+            file.filename, file.size, max_upload_bytes,
+        )
         raise HTTPException(status_code=413, detail="Image too large")
     contents = await file.read()
     if len(contents) > max_upload_bytes:
+        logger.warning(
+            "nsfw_check: 413 file=%r read_size=%d > limit=%d",
+            file.filename, len(contents), max_upload_bytes,
+        )
         raise HTTPException(status_code=413, detail="Image too large")
     try:
         # convert() forces a full decode, so truncated/corrupt/bomb images fail here, not mid-inference
@@ -109,10 +126,18 @@ async def check_nsfw(file: UploadFile = File(...)):
                 "bytes": len(contents),
             }
             image = img.convert("RGB")
-    except (UnidentifiedImageError, OSError, Image.DecompressionBombError, ValueError):
+    except (UnidentifiedImageError, OSError, Image.DecompressionBombError, ValueError) as exc:
+        logger.warning(
+            "nsfw_check: 400 file=%r %d bytes - undecodable: %s: %s",
+            file.filename, len(contents), type(exc).__name__, exc,
+        )
         raise HTTPException(status_code=400, detail="Invalid image file") from None
 
     if inference_slots.locked():
+        logger.warning(
+            "nsfw_check: 503 file=%r - all %d inference slot(s) busy",
+            file.filename, max_inflight,
+        )
         raise HTTPException(
             status_code=503,
             detail="Server busy, retry shortly",
@@ -123,13 +148,20 @@ async def check_nsfw(file: UploadFile = File(...)):
         is_nsfw_bool, prob = await run_in_threadpool(is_nsfw, image)
         inference_ms = (time.perf_counter() - inference_started) * 1000
 
-    logger.info("nsfw_check: is_nsfw=%s probability=%.4f", is_nsfw_bool, round(prob, 4))
+    total_ms = (time.perf_counter() - started) * 1000
+    logger.info(
+        "nsfw_check: is_nsfw=%s probability=%.4f file=%r %dx%d %s %d bytes "
+        "inference_ms=%.1f total_ms=%.1f",
+        is_nsfw_bool, round(prob, 4), file.filename,
+        image_meta["width"], image_meta["height"], image_meta["format"],
+        image_meta["bytes"], round(inference_ms, 1), round(total_ms, 1),
+    )
     return {
         "is_nsfw": is_nsfw_bool,
         "nsfw_probability": round(prob, 4),
         "meta": {
             "inference_ms": round(inference_ms, 1),
-            "total_ms": round((time.perf_counter() - started) * 1000, 1),
+            "total_ms": round(total_ms, 1),
             "threshold": nsfw_threshold,
             "model": model_name,
             "image": image_meta,

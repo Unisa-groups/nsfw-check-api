@@ -65,9 +65,14 @@ After changing dependencies: `pdm add ... ` / edit `pyproject.toml`, then
 ```
 `meta` is diagnostic and cheap to compute; the top level is the answer.
 
-Each worker logs `... ready: model=... pid=...` once on startup and
-`nsfw_check: is_nsfw=... probability=...` per image, via the `uvicorn.error`
-logger so the lines share uvicorn's output and formatting.
+Logging goes through the `uvicorn.error` logger so lines share uvicorn's
+output and formatting. Per worker:
+
+- startup: `nsfw-check-api starting: loading model ...`, then `... ready: model=... pid=...`
+- every `/nsfw_check`: an INFO `request file=... declared_size=...` line, then
+  either `is_nsfw=... probability=... WxH FORMAT ... inference_ms=... total_ms=...`
+  on success or a WARNING line naming the reason for a `413` / `400` / `503`.
+  uvicorn's own access log adds the request/response line on top.
 
 ## Docker
 
