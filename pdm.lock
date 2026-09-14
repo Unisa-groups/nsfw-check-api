@@ -5,7 +5,7 @@
 groups = ["default", "dev"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.1"
-content_hash = "sha256:53fdb626bc8139fc1f90da4844da8845801320fecef79224df2d8ffc0e586b85"
+content_hash = "sha256:35e1eac3735539b8a4a6861b642ac9f5c2dbb00d1371ed88aa3fa70a9fd03cec"
 
 [[metadata.targets]]
 requires_python = ">=3.12,<3.13"
@@ -429,6 +429,21 @@ groups = ["default", "dev"]
 files = [
     {file = "pygments-2.21.0-py3-none-any.whl", hash = "sha256:2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9"},
     {file = "pygments-2.21.0.tar.gz", hash = "sha256:610ca751c9bc2492b38eb9a38a7fbc93edbbb2d7182edaf34e66ae493dee5c8c"},
+]
+
+[[package]]
+name = "pytesseract"
+version = "0.3.13"
+requires_python = ">=3.8"
+summary = "Python-tesseract is a python wrapper for Google's Tesseract-OCR"
+groups = ["default"]
+dependencies = [
+    "Pillow>=8.0.0",
+    "packaging>=21.3",
+]
+files = [
+    {file = "pytesseract-0.3.13-py3-none-any.whl", hash = "sha256:7a99c6c2ac598360693d83a416e36e0b33a67638bb9d77fdcac094a3589d4b34"},
+    {file = "pytesseract-0.3.13.tar.gz", hash = "sha256:4bf5f880c99406f52a3cfc2633e42d9dc67615e69d8a509d74867d3baddb5db9"},
 ]
 
 [[package]]

@@ -6,6 +6,12 @@ ENV MODEL_PATH=/usr/src/app/model \
     PDM_CHECK_UPDATE=false \
     PATH=/usr/src/app/.venv/bin:$PATH
 
+# tesseract-ocr-osd: language data for OSD (orientation/script detection) mode,
+# used to recover images with no EXIF orientation tag to correct - see AGENTS.md
+RUN apt-get update && apt-get install --no-install-recommends -y \
+    tesseract-ocr tesseract-ocr-osd \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN pip install --no-cache-dir pdm
 
 # Locked prod deps first so this layer is cached until pyproject/pdm.lock change.

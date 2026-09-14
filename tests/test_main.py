@@ -96,6 +96,94 @@ def test_check_nsfw_truncated_image():
     assert response.status_code == 400
     assert response.json()["detail"] == "Invalid image file"
 
+def _jpeg_with_exif_orientation(path, orientation):
+    img = Image.open(path)
+    exif = img.getexif()
+    exif[0x0112] = orientation  # 274 = the EXIF "Orientation" tag
+    buf = io.BytesIO()
+    img.convert("RGB").save(buf, format="JPEG", exif=exif)
+    buf.seek(0)
+    return buf
+
+
+@pytest.mark.needs_model
+def test_check_nsfw_respects_exif_orientation():
+    # study-guides.jpg is stored sideways (a real upload that was misclassified as
+    # NSFW). Orientation=8 is the tag a phone/client would set to say "rotate 90
+    # degrees CCW to display upright" - the API must apply it before classifying,
+    # not feed the model a sideways image.
+    buf = _jpeg_with_exif_orientation("testimages/study-guides.jpg", 8)
+
+    response = client.post(
+        "/nsfw_check",
+        files={"file": ("study-guides.jpg", buf, "image/jpeg")},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert not data["is_nsfw"]
+    assert data["nsfw_probability"] < 0.1
+
+
+@pytest.mark.needs_model
+@pytest.mark.parametrize("filename", ["study-guides.jpg", "declaration-form.jpg"])
+def test_check_nsfw_reports_both_orientations_but_stays_conservative(filename):
+    # Both files are stored sideways with no EXIF orientation tag at all (stripped
+    # by whatever transferred them) - the exact real uploads that were
+    # misclassified as NSFW. Until the rotation correction is trusted in
+    # production, a flagged original reading always wins; the corrected reading
+    # is exposed alongside it for monitoring, not used to clear the flag.
+    with open(f"testimages/{filename}", "rb") as f:
+        response = client.post(
+            "/nsfw_check",
+            files={"file": (filename, f, "image/jpeg")},
+        )
+    data = response.json()
+    assert data["is_nsfw"]
+
+    check = data["meta"]["text_orientation_check"]
+    assert check["original"]["is_nsfw"]
+    assert check["original"]["probability"] == data["nsfw_probability"]
+    assert not check["rotated"]["is_nsfw"]
+    assert check["rotated"]["probability"] < 0.1
+    assert check["rotated"]["degrees"] in (90, 180, 270)
+
+
+@pytest.mark.needs_model
+def test_check_nsfw_no_text_orientation_check_when_not_flagged():
+    image = Image.new("RGB", (100, 100), color="blue")
+    buf = io.BytesIO()
+    image.save(buf, format="PNG")
+    buf.seek(0)
+
+    response = client.post(
+        "/nsfw_check",
+        files={"file": ("blue.png", buf, "image/png")},
+    )
+
+    assert response.json()["meta"]["text_orientation_check"] is None
+
+
+@pytest.mark.needs_model
+def test_check_nsfw_no_text_orientation_check_when_no_text_found(monkeypatch):
+    # Flagged, but the image has no text for OSD to read (the common case - most
+    # flagged images are photos, not documents): stays flagged, nothing to report.
+    monkeypatch.setattr(main, "is_nsfw", lambda image: (True, 0.9))
+    image = Image.new("RGB", (100, 100), color="red")
+    buf = io.BytesIO()
+    image.save(buf, format="PNG")
+    buf.seek(0)
+
+    response = client.post(
+        "/nsfw_check",
+        files={"file": ("red.png", buf, "image/png")},
+    )
+
+    data = response.json()
+    assert data["is_nsfw"]
+    assert data["meta"]["text_orientation_check"] is None
+
+
 @pytest.mark.needs_model
 def test_check_nsfw_rgba_image():
     # Non-RGB images must be converted, not rejected or misclassified.

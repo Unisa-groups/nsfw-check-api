@@ -6,11 +6,12 @@ import time
 from contextlib import asynccontextmanager
 from functools import lru_cache
 
+import pytesseract
 import torch
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageOps, UnidentifiedImageError
 from transformers import AutoModelForImageClassification, ViTImageProcessorPil
 
 # "uvicorn.error" is uvicorn's general logger - lines land in the server's own output
@@ -90,6 +91,19 @@ def is_nsfw(image):
     nsfw_prob = probabilities[0][nsfw_index].item()
     return nsfw_prob > nsfw_threshold, nsfw_prob
 
+def _upright_by_text_orientation(image):
+    # Fallback for images with no EXIF orientation tag to correct (exif_transpose
+    # already handled the case where one exists): ask Tesseract's OSD mode how far
+    # the text on the page is rotated. Raises TesseractError on anything it can't
+    # read as text (most flagged images are photos, not documents) - that's the
+    # expected outcome for non-text images, not a bug, so it just means "can't help".
+    try:
+        osd = pytesseract.image_to_osd(image, output_type=pytesseract.Output.DICT)
+    except (pytesseract.TesseractError, pytesseract.TesseractNotFoundError):
+        return None
+    rotate = osd["rotate"]
+    return (image.rotate(-rotate, expand=True), rotate) if rotate else None
+
 @app.get("/heartbeat")
 async def heartbeat():
     return {"status": "alive"}
@@ -118,14 +132,18 @@ async def check_nsfw(file: UploadFile = File(...)):
     try:
         # convert() forces a full decode, so truncated/corrupt/bomb images fail here, not mid-inference
         with Image.open(io.BytesIO(contents)) as img:
+            img_format = img.format
+            # A camera/client that tags orientation expects the tag honored, not the
+            # raw sensor buffer classified sideways.
+            oriented = ImageOps.exif_transpose(img)
             image_meta = {
-                "width": img.width,
-                "height": img.height,
-                "format": img.format,
-                "mode": img.mode,
+                "width": oriented.width,
+                "height": oriented.height,
+                "format": img_format,
+                "mode": oriented.mode,
                 "bytes": len(contents),
             }
-            image = img.convert("RGB")
+            image = oriented.convert("RGB")
     except (UnidentifiedImageError, OSError, Image.DecompressionBombError, ValueError) as exc:
         logger.warning(
             "nsfw_check: 400 file=%r %d bytes - undecodable: %s: %s",
@@ -146,6 +164,26 @@ async def check_nsfw(file: UploadFile = File(...)):
     async with inference_slots:
         inference_started = time.perf_counter()
         is_nsfw_bool, prob = await run_in_threadpool(is_nsfw, image)
+        text_orientation_check = None
+        if is_nsfw_bool:
+            # Only spend the extra pass on the minority of images that get flagged.
+            # Conservative by default while this is monitored in production: either
+            # reading being NSFW keeps the flag, so this can't clear a flagged
+            # result on its own yet - it only adds the corrected reading for
+            # comparison. Flip to trusting it once it's proven out.
+            upright = await run_in_threadpool(_upright_by_text_orientation, image)
+            if upright is not None:
+                rotated_image, degrees = upright
+                rotated_is_nsfw, rotated_prob = await run_in_threadpool(is_nsfw, rotated_image)
+                text_orientation_check = {
+                    "original": {"is_nsfw": is_nsfw_bool, "probability": round(prob, 4)},
+                    "rotated": {
+                        "is_nsfw": rotated_is_nsfw,
+                        "probability": round(rotated_prob, 4),
+                        "degrees": degrees,
+                    },
+                }
+                is_nsfw_bool = is_nsfw_bool or rotated_is_nsfw
         inference_ms = (time.perf_counter() - inference_started) * 1000
 
     total_ms = (time.perf_counter() - started) * 1000
@@ -165,6 +203,7 @@ async def check_nsfw(file: UploadFile = File(...)):
             "threshold": nsfw_threshold,
             "model": model_name,
             "image": image_meta,
+            "text_orientation_check": text_orientation_check,
             "worker_pid": os.getpid(),
         },
     }

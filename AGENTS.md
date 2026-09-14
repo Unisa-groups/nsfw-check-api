@@ -44,6 +44,36 @@ After changing dependencies: `pdm add ... ` / edit `pyproject.toml`, then
   image small. Don't switch to `AutoImageProcessor` — it pulls in torchvision;
   `ViTImageProcessorPil` is deliberate.
 
+## Orientation handling
+
+The model is not rotation-invariant: a sideways photo of ordinary content (a
+document, a book cover) can read as >90% NSFW even though the same pixels
+rotated upright read as ~0%. `/nsfw_check` corrects for this in two layers
+before trusting a result:
+
+1. `ImageOps.exif_transpose()` - handles any image carrying an EXIF
+   orientation tag. Free, always applied.
+2. If (and only if) that first pass still classifies the image as NSFW,
+   `_upright_by_text_orientation` asks Tesseract's OSD mode (`pytesseract`) how
+   far the text on the page is rotated, and reclassifies once against the
+   corrected image. This is for uploads with no orientation metadata at all
+   (e.g. photos re-exported by a chat app that strips it) - exif_transpose has
+   nothing to work with there. `TesseractError` (no text found - the common
+   case, since most flagged images are photos, not documents) and
+   `TesseractNotFoundError` (binary missing) both fall back to the original
+   result rather than erroring the request.
+   Needs the `tesseract-ocr` + `tesseract-ocr-osd` system packages (installed
+   in `Dockerfile`; `brew install tesseract` locally, which bundles both).
+
+**The rotated reading does not clear a flagged result (yet).** `is_nsfw` is the
+OR of the original and rotated readings - since the rotated pass only runs
+when the original is already NSFW, the flag always stands. Both readings land
+in `meta.text_orientation_check` (`null` if the pass never ran or found no
+text) purely for monitoring, so real traffic can build confidence in the
+correction before it's trusted to actually clear a flag. If/when that
+happens, `is_nsfw_bool = is_nsfw_bool or rotated_is_nsfw` in `check_nsfw`
+is the line to flip.
+
 ## Concurrency
 
 - One `uvicorn` process has one GIL, so parallelism comes from **worker
@@ -61,9 +91,18 @@ After changing dependencies: `pdm add ... ` / edit `pyproject.toml`, then
 {"is_nsfw": true, "nsfw_probability": 0.9982,
  "meta": {"inference_ms": 41.2, "total_ms": 47.9, "threshold": 0.5,
           "model": "...", "image": {"width": ..., "height": ..., "format": ...,
-          "mode": ..., "bytes": ...}, "worker_pid": 7}}
+          "mode": ..., "bytes": ...},
+          "text_orientation_check": null, "worker_pid": 7}}
 ```
 `meta` is diagnostic and cheap to compute; the top level is the answer.
+`text_orientation_check` is only non-null when the original reading was NSFW
+*and* Tesseract found text to orient by:
+```json
+"text_orientation_check": {
+  "original": {"is_nsfw": true, "probability": 0.9901},
+  "rotated": {"is_nsfw": false, "probability": 0.0005, "degrees": 90}
+}
+```
 
 Logging goes through the `uvicorn.error` logger so lines share uvicorn's
 output and formatting. Per worker:
