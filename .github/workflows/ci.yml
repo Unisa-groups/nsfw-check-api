@@ -51,6 +51,9 @@ jobs:
       - name: Fetch the model if not cached
         run: pdm run python -c "from nsfw_check_api.main import ensure_models_exist; ensure_models_exist()"
 
+      - name: Install tesseract (OSD orientation detection)
+        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y tesseract-ocr tesseract-ocr-osd
+
       - name: Test
         run: pdm run pytest
 
